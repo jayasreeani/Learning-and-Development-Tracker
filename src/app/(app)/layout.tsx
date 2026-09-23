@@ -15,11 +15,12 @@ export default async function AppLayout({
 
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  // Guarantees a profiles row exists for this account, creating one on the
+  // spot (first signup ever = owner, otherwise member) if the signup
+  // trigger somehow didn't run for it. Without this, a missing row silently
+  // fell back to "member" and every manager-only control in the app just
+  // didn't render, with no error shown anywhere.
+  const { data: profile } = await supabase.rpc("ensure_current_profile");
 
   return (
     <ViewerProvider initialProfile={profile}>

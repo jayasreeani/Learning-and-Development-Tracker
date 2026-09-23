@@ -71,7 +71,8 @@ export default function LearningPage() {
             Learning &amp; Development
           </h1>
           <p className="text-sm text-ink-soft">
-            Trainings attended and skills upgraded, per team member.
+            Log a training you attended or a skill you picked up — anyone on
+            the team can add an entry; a manager keeps the list tidy.
           </p>
         </div>
         <div className="flex gap-2">
@@ -89,7 +90,7 @@ export default function LearningPage() {
               Skills upgraded
             </button>
           </div>
-          {canManage && tab === "trainings" && (
+          {tab === "trainings" && (
             <button
               className="btn btn-primary"
               onClick={() =>
@@ -107,7 +108,7 @@ export default function LearningPage() {
               + Log training
             </button>
           )}
-          {canManage && tab === "skills" && (
+          {tab === "skills" && (
             <button
               className="btn btn-primary"
               onClick={() =>

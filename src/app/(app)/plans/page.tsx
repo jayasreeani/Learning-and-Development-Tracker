@@ -15,6 +15,7 @@ export default function PlansPage() {
   const { canManage } = useViewer();
   const [form, setForm] = useState<Partial<TrainingPlan> | null>(null);
   const [saving, setSaving] = useState(false);
+  const [conflictError, setConflictError] = useState<string | null>(null);
 
   const memberName = useMemo(() => {
     const map = new Map(members.map((m) => [m.id, m.name]));
@@ -28,8 +29,25 @@ export default function PlansPage() {
   const upcoming = sorted.filter((p) => !p.schedule || new Date(p.schedule) >= now);
   const past = sorted.filter((p) => p.schedule && new Date(p.schedule) < now);
 
+  function findScheduleConflict(schedule: string | undefined, excludeId?: string) {
+    if (!schedule) return null;
+    return (
+      plans.find((p) => p.id !== excludeId && p.schedule === schedule) || null
+    );
+  }
+
   async function save() {
     if (!form) return;
+    setConflictError(null);
+
+    const conflict = findScheduleConflict(form.schedule || undefined, form.id);
+    if (conflict) {
+      setConflictError(
+        `That slot is already taken — ${conflict.member_name || "someone"} has "${conflict.topic}" scheduled at the same time. Pick a different time.`
+      );
+      return;
+    }
+
     setSaving(true);
     const member = members.find((m) => m.id === form.member_id);
     const payload = { ...form, member_name: member?.name || "" };
@@ -82,7 +100,10 @@ export default function PlansPage() {
       {form && (
         <Modal
           title={form.id ? "Edit plan" : "Schedule a training"}
-          onClose={() => setForm(null)}
+          onClose={() => {
+            setForm(null);
+            setConflictError(null);
+          }}
         >
           <div className="space-y-3">
             <label className="block">
@@ -129,12 +150,24 @@ export default function PlansPage() {
                 type="datetime-local"
                 className="input"
                 value={form.schedule?.slice(0, 16) || ""}
-                onChange={(e) => setForm({ ...form, schedule: e.target.value })}
+                onChange={(e) => {
+                  setConflictError(null);
+                  setForm({ ...form, schedule: e.target.value });
+                }}
               />
             </label>
+            {conflictError && (
+              <p className="text-sm text-critical">{conflictError}</p>
+            )}
           </div>
           <div className="mt-5 flex justify-end gap-2">
-            <button className="btn btn-ghost" onClick={() => setForm(null)}>
+            <button
+              className="btn btn-ghost"
+              onClick={() => {
+                setForm(null);
+                setConflictError(null);
+              }}
+            >
               Cancel
             </button>
             <button

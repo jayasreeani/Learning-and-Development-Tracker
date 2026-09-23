@@ -44,6 +44,43 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- Self-healing fallback: guarantees the signed-in user has a profiles row,
+-- creating one on the spot if the trigger above didn't run for them (for
+-- example, an account created before this trigger existed, or a signup that
+-- raced the trigger). The app calls this once per session on load instead of
+-- trusting the trigger alone. Same first-signup-becomes-owner rule applies.
+create or replace function public.ensure_current_profile()
+returns public.profiles
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  result public.profiles;
+  is_first boolean;
+begin
+  select * into result from public.profiles where id = auth.uid();
+  if result.id is not null then
+    return result;
+  end if;
+
+  select not exists (select 1 from public.profiles) into is_first;
+
+  insert into public.profiles (id, name, email, role)
+  select
+    auth.uid(),
+    coalesce(u.raw_user_meta_data->>'name', split_part(u.email, '@', 1)),
+    coalesce(u.email, ''),
+    case when is_first then 'owner' else 'member' end
+  from auth.users u
+  where u.id = auth.uid()
+  returning * into result;
+
+  return result;
+end;
+$$;
+
+grant execute on function public.ensure_current_profile() to authenticated;
+
 -- ============================================================================
 -- 2. DATA TABLES
 -- ============================================================================
@@ -182,11 +219,22 @@ drop policy if exists "members write" on public.members;
 create policy "members write" on public.members for all
   using (public.can_manage()) with check (public.can_manage());
 
+-- trainings / skill_events: read for anyone signed in; ANYONE signed in can
+-- log a training they attended or a skill they picked up (self-service
+-- learning log — matches how the team actually uses this page); editing or
+-- removing an existing entry stays manager/owner-only.
 drop policy if exists "trainings read" on public.trainings;
 create policy "trainings read" on public.trainings for select using (auth.role() = 'authenticated');
 drop policy if exists "trainings write" on public.trainings;
-create policy "trainings write" on public.trainings for all
+drop policy if exists "trainings insert" on public.trainings;
+create policy "trainings insert" on public.trainings for insert
+  with check (auth.role() = 'authenticated');
+drop policy if exists "trainings manage" on public.trainings;
+create policy "trainings manage" on public.trainings for update
   using (public.can_manage()) with check (public.can_manage());
+drop policy if exists "trainings delete" on public.trainings;
+create policy "trainings delete" on public.trainings for delete
+  using (public.can_manage());
 
 drop policy if exists "plans read" on public.training_plans;
 create policy "plans read" on public.training_plans for select using (auth.role() = 'authenticated');
@@ -209,13 +257,19 @@ drop policy if exists "requests delete" on public.training_requests;
 create policy "requests delete" on public.training_requests for delete
   using (public.can_manage());
 
--- skill_events: read for anyone signed in, write only manager/owner (skills
--- are edited from the roster/learning views, which are manager-only anyway).
+-- skill_events: same self-service model as trainings above.
 drop policy if exists "skill events read" on public.skill_events;
 create policy "skill events read" on public.skill_events for select using (auth.role() = 'authenticated');
 drop policy if exists "skill events write" on public.skill_events;
-create policy "skill events write" on public.skill_events for all
+drop policy if exists "skill events insert" on public.skill_events;
+create policy "skill events insert" on public.skill_events for insert
+  with check (auth.role() = 'authenticated');
+drop policy if exists "skill events manage" on public.skill_events;
+create policy "skill events manage" on public.skill_events for update
   using (public.can_manage()) with check (public.can_manage());
+drop policy if exists "skill events delete" on public.skill_events;
+create policy "skill events delete" on public.skill_events for delete
+  using (public.can_manage());
 
 -- ============================================================================
 -- 5. REALTIME
