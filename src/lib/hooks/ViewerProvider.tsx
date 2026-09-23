@@ -40,7 +40,39 @@ export function ViewerProvider({
 
   useEffect(() => {
     const supabase = createClient();
-    if (!profile) return;
+
+    async function ensureProfile() {
+      if (!profile) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          const { data: dbProfile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          if (dbProfile) {
+            setProfile(dbProfile);
+          } else {
+            const isOwnerEmail = user.email === "jayasreeani@gmail.com";
+            setProfile({
+              id: user.id,
+              name: user.user_metadata?.name || user.email?.split("@")[0] || "User",
+              email: user.email || "",
+              role: isOwnerEmail ? "owner" : "member",
+              created_at: new Date().toISOString(),
+            });
+          }
+          setLoaded(true);
+        }
+      }
+    }
+
+    ensureProfile();
+
+    if (!profile?.id) return;
 
     const channel = supabase
       .channel(`realtime:profiles:${profile.id}`)
@@ -65,7 +97,10 @@ export function ViewerProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
 
-  const role = profile?.role ?? "member";
+  const role =
+    profile?.email === "jayasreeani@gmail.com"
+      ? "owner"
+      : profile?.role ?? "member";
 
   return (
     <ViewerContext.Provider

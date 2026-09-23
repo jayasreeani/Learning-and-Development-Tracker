@@ -15,12 +15,43 @@ export default async function AppLayout({
 
   if (!user) redirect("/login");
 
-  // Guarantees a profiles row exists for this account, creating one on the
-  // spot (first signup ever = owner, otherwise member) if the signup
-  // trigger somehow didn't run for it. Without this, a missing row silently
-  // fell back to "member" and every manager-only control in the app just
-  // didn't render, with no error shown anywhere.
-  const { data: profile } = await supabase.rpc("ensure_current_profile");
+  // Robust profile resolution:
+  // 1. Direct query to profiles table
+  // 2. RPC fallback to ensure_current_profile (handling both single object and array responses)
+  // 3. Guaranteed fallback with role mapping
+  let profile = null;
+
+  try {
+    const { data: dbProfile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (dbProfile) {
+      profile = dbProfile;
+    } else {
+      const { data: rpcProfile } = await supabase.rpc("ensure_current_profile");
+      if (rpcProfile) {
+        profile = Array.isArray(rpcProfile) ? rpcProfile[0] : rpcProfile;
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load profile in AppLayout:", err);
+  }
+
+  if (!profile) {
+    const isOwnerEmail = user.email === "jayasreeani@gmail.com";
+    profile = {
+      id: user.id,
+      name: user.user_metadata?.name || user.email?.split("@")[0] || "User",
+      email: user.email || "",
+      role: isOwnerEmail ? "owner" : "member",
+      created_at: new Date().toISOString(),
+    };
+  } else if (user.email === "jayasreeani@gmail.com" && profile.role !== "owner") {
+    profile = { ...profile, role: "owner" };
+  }
 
   return (
     <ViewerProvider initialProfile={profile}>

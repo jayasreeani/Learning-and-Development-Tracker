@@ -211,13 +211,12 @@ drop policy if exists "profiles owner manages roles" on public.profiles;
 create policy "profiles owner manages roles" on public.profiles for update
   using ((select role from public.profiles where id = auth.uid()) = 'owner');
 
--- members / trainings / training_plans: read for anyone signed in, write only
--- for manager/owner.
+-- members: read and write for anyone signed in (self-service roster management)
 drop policy if exists "members read" on public.members;
 create policy "members read" on public.members for select using (auth.role() = 'authenticated');
 drop policy if exists "members write" on public.members;
 create policy "members write" on public.members for all
-  using (public.can_manage()) with check (public.can_manage());
+  using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 -- trainings / skill_events: read for anyone signed in; ANYONE signed in can
 -- log a training they attended or a skill they picked up (self-service
