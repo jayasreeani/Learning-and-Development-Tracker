@@ -56,19 +56,28 @@ export default function PermissionsPage() {
     [members]
   );
 
-  // Group members by project
+  // Group members by project (excluding Delivery Manager so manager is not counted in project sizes)
+  const isManagerMember = (m: Member) =>
+    m.name.toLowerCase().includes("jayasree") ||
+    m.project_role === "Manager" ||
+    m.role_type === "Management";
+
   const gogymMembers = useMemo(
     () =>
-      members.filter((m) =>
-        m.projects.some((p) => p.toLowerCase().includes("gogym"))
+      members.filter(
+        (m) =>
+          !isManagerMember(m) &&
+          m.projects.some((p) => p.toLowerCase().includes("gogym"))
       ),
     [members]
   );
 
   const slavicMembers = useMemo(
     () =>
-      members.filter((m) =>
-        m.projects.some((p) => p.toLowerCase().includes("slavic"))
+      members.filter(
+        (m) =>
+          !isManagerMember(m) &&
+          m.projects.some((p) => p.toLowerCase().includes("slavic"))
       ),
     [members]
   );
@@ -85,10 +94,16 @@ export default function PermissionsPage() {
       if (!matchesSearch) return false;
 
       if (projectFilter === "GoGym") {
-        return m.projects.some((p) => p.toLowerCase().includes("gogym"));
+        return (
+          !isManagerMember(m) &&
+          m.projects.some((p) => p.toLowerCase().includes("gogym"))
+        );
       }
       if (projectFilter === "Slavic") {
-        return m.projects.some((p) => p.toLowerCase().includes("slavic"));
+        return (
+          !isManagerMember(m) &&
+          m.projects.some((p) => p.toLowerCase().includes("slavic"))
+        );
       }
       return true;
     });
@@ -185,8 +200,11 @@ export default function PermissionsPage() {
             {gogymLead?.designation || "Scrum Master / PM"}
           </p>
           <div className="mt-3 flex items-center justify-between text-xs text-ink-soft">
-            <span>Team size:</span>
-            <span className="font-semibold text-ink">{gogymMembers.length} members</span>
+            <span>Project Team size:</span>
+            <div className="text-right">
+              <span className="font-semibold text-ink">{gogymMembers.length} members</span>
+              <span className="block text-[10px] text-ink-faint">(excl. Delivery Manager)</span>
+            </div>
           </div>
           <p className="mt-3 text-xs text-ink-soft">
             Directs GoGym initiatives, tracks training requests, and coordinates team schedules.
@@ -208,8 +226,11 @@ export default function PermissionsPage() {
             {slavicLead?.designation || "Business Analyst"}
           </p>
           <div className="mt-3 flex items-center justify-between text-xs text-ink-soft">
-            <span>Team size:</span>
-            <span className="font-semibold text-ink">{slavicMembers.length} members</span>
+            <span>Project Team size:</span>
+            <div className="text-right">
+              <span className="font-semibold text-ink">{slavicMembers.length} members</span>
+              <span className="block text-[10px] text-ink-faint">(excl. Delivery Manager)</span>
+            </div>
           </div>
           <p className="mt-3 text-xs text-ink-soft">
             Directs Slavic Web &amp; Mobile initiatives, training plans, and requirements.
@@ -227,7 +248,7 @@ export default function PermissionsPage() {
           }`}
           onClick={() => setActiveTab("projects")}
         >
-          Project Roles &amp; Allocation ({members.length} Members)
+          Project Roles &amp; Allocation ({members.length} Total)
         </button>
         <button
           className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
@@ -246,17 +267,21 @@ export default function PermissionsPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             {/* Filter buttons */}
             <div className="flex gap-1 rounded-full border border-line p-1 text-xs font-medium">
-              {["All", "GoGym", "Slavic"].map((tab) => (
+              {[
+                { id: "All", label: `All (${members.length})` },
+                { id: "GoGym", label: `GoGym (${gogymMembers.length})` },
+                { id: "Slavic", label: `Slavic (${slavicMembers.length})` },
+              ].map((tab) => (
                 <button
-                  key={tab}
+                  key={tab.id}
                   className={`rounded-full px-3 py-1 transition-colors ${
-                    projectFilter === tab
+                    projectFilter === tab.id
                       ? "bg-teal text-white"
                       : "text-ink-soft hover:text-ink"
                   }`}
-                  onClick={() => setProjectFilter(tab)}
+                  onClick={() => setProjectFilter(tab.id)}
                 >
-                  {tab === "All" ? `All (${members.length})` : tab}
+                  {tab.label}
                 </button>
               ))}
             </div>
