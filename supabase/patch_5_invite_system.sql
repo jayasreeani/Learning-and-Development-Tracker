@@ -187,3 +187,26 @@ from public.profiles p
 where (p.email ilike '%jayasree%' or p.name ilike '%jayasree%')
   and (m.name ilike '%jayasree%')
   and m.user_id is null;
+
+-- 7. Pre-seed invite token for Delivery Manager (Jayasree Kuniyil)
+insert into public.invites (
+  member_id,
+  member_name,
+  email,
+  token,
+  project,
+  project_role,
+  expires_at
+)
+select
+  id,
+  name,
+  'jayasreeani@gmail.com',
+  'manager-setup',
+  'All Projects',
+  'Manager',
+  now() + interval '365 days'
+from public.members
+where name ilike '%jayasree%'
+limit 1
+on conflict (token) do nothing;
