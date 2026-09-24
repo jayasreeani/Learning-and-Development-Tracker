@@ -21,6 +21,7 @@ export interface MemberNote {
 
 export interface Member {
   id: string;
+  user_id?: string | null;
   name: string;
   designation: string;
   role_type: string;
@@ -95,6 +96,20 @@ export interface SkillEvent {
   created_at: string;
 }
 
+export interface Invite {
+  id: string;
+  member_id: string;
+  member_name: string;
+  email: string | null;
+  token: string;
+  project: string | null;
+  project_role: ProjectRole;
+  created_by: string | null;
+  used_at: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -104,6 +119,7 @@ export interface Database {
       training_plans: { Row: TrainingPlan; Insert: Partial<TrainingPlan>; Update: Partial<TrainingPlan> };
       training_requests: { Row: TrainingRequest; Insert: Partial<TrainingRequest>; Update: Partial<TrainingRequest> };
       skill_events: { Row: SkillEvent; Insert: Partial<SkillEvent>; Update: Partial<SkillEvent> };
+      invites: { Row: Invite; Insert: Partial<Invite>; Update: Partial<Invite> };
     };
   };
 }

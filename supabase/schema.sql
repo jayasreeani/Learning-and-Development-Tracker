@@ -87,6 +87,7 @@ grant execute on function public.ensure_current_profile() to authenticated;
 
 create table if not exists public.members (
   id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
   name text not null default '',
   designation text not null default '',
   role_type text not null default '',
@@ -158,6 +159,20 @@ create table if not exists public.skill_events (
   member_name text not null default '',
   skill text not null default '',
   event_date date not null default current_date,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.invites (
+  id uuid primary key default gen_random_uuid(),
+  member_id uuid not null references public.members(id) on delete cascade,
+  member_name text not null,
+  email text,
+  token text not null unique,
+  project text,
+  project_role text not null default 'Member',
+  created_by uuid references auth.users(id),
+  used_at timestamptz,
+  expires_at timestamptz not null default (now() + interval '7 days'),
   created_at timestamptz not null default now()
 );
 
@@ -281,8 +296,132 @@ drop policy if exists "skill events delete" on public.skill_events;
 create policy "skill events delete" on public.skill_events for delete
   using (public.can_manage());
 
+-- invites: authenticated users can inspect, create, and manage invites
+alter table public.invites enable row level security;
+drop policy if exists "invites select authenticated" on public.invites;
+create policy "invites select authenticated" on public.invites for select
+  using (auth.role() = 'authenticated');
+drop policy if exists "invites insert authenticated" on public.invites;
+create policy "invites insert authenticated" on public.invites for insert
+  with check (auth.role() = 'authenticated');
+drop policy if exists "invites update authenticated" on public.invites;
+create policy "invites update authenticated" on public.invites for update
+  using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+drop policy if exists "invites delete authenticated" on public.invites;
+create policy "invites delete authenticated" on public.invites for delete
+  using (auth.role() = 'authenticated');
+
 -- ============================================================================
--- 5. REALTIME
+-- 5. INVITATION RPC FUNCTIONS
+-- ============================================================================
+
+create or replace function public.get_invite_by_token(p_token text)
+returns table (
+  id uuid,
+  member_id uuid,
+  member_name text,
+  email text,
+  token text,
+  project text,
+  project_role text,
+  used_at timestamptz,
+  expires_at timestamptz,
+  is_valid boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  return query
+  select
+    i.id,
+    i.member_id,
+    i.member_name,
+    i.email,
+    i.token,
+    i.project,
+    i.project_role,
+    i.used_at,
+    i.expires_at,
+    (i.used_at is null and i.expires_at > now()) as is_valid
+  from public.invites i
+  where i.token = p_token
+  limit 1;
+end;
+$$;
+
+grant execute on function public.get_invite_by_token(text) to anon, authenticated;
+
+create or replace function public.complete_invite_signup(
+  p_token text,
+  p_user_id uuid,
+  p_email text
+)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_invite public.invites%rowtype;
+  v_app_role text;
+begin
+  select * into v_invite
+  from public.invites
+  where token = p_token;
+
+  if not found then
+    return json_build_object('success', false, 'error', 'Invite token not found.');
+  end if;
+
+  if v_invite.used_at is not null then
+    return json_build_object('success', false, 'error', 'This invite link has already been used.');
+  end if;
+
+  if v_invite.expires_at <= now() then
+    return json_build_object('success', false, 'error', 'This invite link has expired. Please contact your manager.');
+  end if;
+
+  if v_invite.project_role = 'Manager' then
+    v_app_role := 'manager';
+  elsif v_invite.project_role = 'Lead' then
+    v_app_role := 'lead';
+  else
+    v_app_role := 'member';
+  end if;
+
+  update public.members
+  set user_id = p_user_id,
+      email = coalesce(nullif(p_email, ''), email),
+      updated_at = now()
+  where id = v_invite.member_id;
+
+  update public.invites
+  set used_at = now()
+  where id = v_invite.id;
+
+  insert into public.profiles (id, name, email, role, created_at)
+  values (p_user_id, v_invite.member_name, p_email, v_app_role, now())
+  on conflict (id) do update
+  set name = excluded.name,
+      email = excluded.email,
+      role = excluded.role;
+
+  return json_build_object(
+    'success', true,
+    'member_name', v_invite.member_name,
+    'project', v_invite.project,
+    'project_role', v_invite.project_role,
+    'role', v_app_role
+  );
+end;
+$$;
+
+grant execute on function public.complete_invite_signup(text, uuid, text) to anon, authenticated;
+
+-- ============================================================================
+-- 6. REALTIME
 --    Turn on realtime replication so the app gets live updates, matching the
 --    original artifact's live-sync behavior.
 -- ============================================================================
@@ -293,3 +432,4 @@ alter publication supabase_realtime add table public.training_plans;
 alter publication supabase_realtime add table public.training_requests;
 alter publication supabase_realtime add table public.skill_events;
 alter publication supabase_realtime add table public.profiles;
+alter publication supabase_realtime add table public.invites;

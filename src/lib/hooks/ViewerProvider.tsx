@@ -2,12 +2,13 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile, Role } from "@/lib/supabase/types";
+import type { Member, Profile, Role } from "@/lib/supabase/types";
 
 interface ViewerContextValue {
   id: string | null;
   email: string | null;
   profile: Profile | null;
+  member: Member | null;
   role: Role;
   canManage: boolean;
   isOwner: boolean;
@@ -18,6 +19,7 @@ const ViewerContext = createContext<ViewerContextValue>({
   id: null,
   email: null,
   profile: null,
+  member: null,
   role: "member",
   canManage: false,
   isOwner: false,
@@ -36,17 +38,20 @@ export function ViewerProvider({
   children: React.ReactNode;
 }) {
   const [profile, setProfile] = useState<Profile | null>(initialProfile);
+  const [member, setMember] = useState<Member | null>(null);
   const [loaded, setLoaded] = useState(!!initialProfile);
 
   useEffect(() => {
     const supabase = createClient();
 
-    async function ensureProfile() {
-      if (!profile) {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (user) {
+    async function ensureViewer() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        // Resolve profile
+        if (!profile) {
           const { data: dbProfile } = await supabase
             .from("profiles")
             .select("*")
@@ -65,16 +70,48 @@ export function ViewerProvider({
               created_at: new Date().toISOString(),
             });
           }
-          setLoaded(true);
         }
+
+        // Resolve linked member from roster
+        const { data: dbMember } = await supabase
+          .from("members")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (dbMember) {
+          setMember(dbMember);
+        } else if (user.email) {
+          // Fallback match by email or name if not yet linked by user_id
+          const { data: matchByEmail } = await supabase
+            .from("members")
+            .select("*")
+            .ilike("email", user.email)
+            .maybeSingle();
+
+          if (matchByEmail) {
+            setMember(matchByEmail);
+          } else {
+            const nameSearch = user.user_metadata?.name || user.email.split("@")[0];
+            const { data: matchByName } = await supabase
+              .from("members")
+              .select("*")
+              .ilike("name", `%${nameSearch}%`)
+              .maybeSingle();
+
+            if (matchByName) setMember(matchByName);
+          }
+        }
+
+        setLoaded(true);
       }
     }
 
-    ensureProfile();
+    ensureViewer();
 
     if (!profile?.id) return;
 
-    const channel = supabase
+    const profileChannel = supabase
       .channel(`realtime:profiles:${profile.id}`)
       .on(
         "postgres_changes",
@@ -92,19 +129,44 @@ export function ViewerProvider({
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(profileChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
 
   const emailLower = (profile?.email || "").toLowerCase();
-  const nameLower = (profile?.name || "").toLowerCase();
+  const nameLower = (profile?.name || member?.name || "").toLowerCase();
   const isJayasree =
     emailLower.includes("jayasree") ||
     nameLower.includes("jayasree") ||
     emailLower === "jayasreeani@gmail.com";
 
-  const role = isJayasree ? "owner" : profile?.role ?? "member";
+  const isProjectLead =
+    member?.project_role === "Lead" ||
+    nameLower.includes("gopika") ||
+    nameLower.includes("anuvindha");
+
+  const isProjectManager =
+    member?.project_role === "Manager" || isJayasree;
+
+  let computedRole: Role = profile?.role ?? "member";
+  if (isJayasree) {
+    computedRole = "owner";
+  } else if (isProjectManager && computedRole === "member") {
+    computedRole = "manager";
+  } else if (isProjectLead && computedRole === "member") {
+    computedRole = "lead";
+  }
+
+  const canManage =
+    computedRole === "owner" ||
+    computedRole === "manager" ||
+    computedRole === "lead" ||
+    isProjectLead ||
+    isProjectManager ||
+    isJayasree;
+
+  const isOwner = computedRole === "owner" || isJayasree;
 
   return (
     <ViewerContext.Provider
@@ -112,9 +174,10 @@ export function ViewerProvider({
         id: profile?.id ?? null,
         email: profile?.email ?? null,
         profile,
-        role,
-        canManage: role === "owner" || role === "manager" || role === "lead" || isJayasree,
-        isOwner: role === "owner" || isJayasree,
+        member,
+        role: computedRole,
+        canManage,
+        isOwner,
         loaded,
       }}
     >

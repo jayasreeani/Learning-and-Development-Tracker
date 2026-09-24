@@ -9,7 +9,8 @@ type TableName =
   | "training_plans"
   | "training_requests"
   | "skill_events"
-  | "profiles";
+  | "profiles"
+  | "invites";
 
 /**
  * Loads every row of a table and keeps it live via Supabase Realtime —

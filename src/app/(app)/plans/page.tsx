@@ -37,7 +37,7 @@ export default function PlansPage() {
     "training_plans",
     "schedule"
   );
-  const { canManage, id: viewerId } = useViewer();
+  const { canManage, id: viewerId, member: viewerMember } = useViewer();
 
   const [form, setForm] = useState<Partial<TrainingPlan> | null>(null);
   const [saving, setSaving] = useState(false);
@@ -112,7 +112,7 @@ export default function PlansPage() {
     const slotDate = getSlotDate(dateToUse, slotId);
 
     setForm({
-      member_id: members[0]?.id || "",
+      member_id: viewerMember?.id || members[0]?.id || "",
       topic: "",
       purpose: "",
       schedule: slotDate.toISOString(),

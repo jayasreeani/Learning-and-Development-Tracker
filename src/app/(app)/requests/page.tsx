@@ -18,7 +18,7 @@ export default function RequestsPage() {
   const { rows: requests, supabase } = useTable<TrainingRequest>(
     "training_requests"
   );
-  const { canManage, id: viewerId } = useViewer();
+  const { canManage, id: viewerId, member: viewerMember } = useViewer();
   const [form, setForm] = useState<Partial<TrainingRequest> | null>(null);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<RequestStatus | "All">("All");
@@ -34,7 +34,7 @@ export default function RequestsPage() {
 
   function openNew() {
     setForm({
-      member_id: members[0]?.id || "",
+      member_id: viewerMember?.id || members[0]?.id || "",
       topic: "",
       reason: "",
       status: "Pending",
@@ -193,7 +193,7 @@ export default function RequestsPage() {
               <select
                 className="input"
                 value={form.member_id || ""}
-                disabled={!!form.id}
+                disabled={!!form.id || (!canManage && !!viewerMember)}
                 onChange={(e) => setForm({ ...form, member_id: e.target.value })}
               >
                 {members.map((m) => (

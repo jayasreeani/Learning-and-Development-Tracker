@@ -1,55 +1,54 @@
 "use client";
 
-import { useState, useTransition, Suspense } from "react";
+import { useState, useTransition, Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/roster";
+  const token = params.get("token");
 
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [name, setName] = useState("");
+  // If visitor arrives at /login with ?token=..., forward them directly to /join
+  useEffect(() => {
+    if (token) {
+      router.replace(`/join?token=${encodeURIComponent(token)}`);
+    }
+  }, [token, router]);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Invite code lookup helper
+  const [inviteTokenInput, setInviteTokenInput] = useState("");
+  const [showInviteInput, setShowInviteInput] = useState(false);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setNotice(null);
     const supabase = createClient();
 
     startTransition(async () => {
-      if (mode === "signup") {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { data: { name: name || email.split("@")[0] } },
-        });
-        if (error) return setError(error.message);
-        if (!data.session) {
-          setNotice(
-            "Account created. Check your email to confirm it, then sign in."
-          );
-          setMode("signin");
-          return;
-        }
-        router.push(next);
-        router.refresh();
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) return setError(error.message);
-        router.push(next);
-        router.refresh();
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (error) {
+        return setError(error.message);
       }
+      router.push(next);
+      router.refresh();
     });
+  }
+
+  function handleRedeemToken(e: React.FormEvent) {
+    e.preventDefault();
+    if (!inviteTokenInput.trim()) return;
+    router.push(`/join?token=${encodeURIComponent(inviteTokenInput.trim())}`);
   }
 
   return (
@@ -60,34 +59,19 @@ function LoginForm() {
             Learning &amp; Development Tracker
           </h1>
           <p className="mt-1 text-sm text-ink-soft">
-            {mode === "signin"
-              ? "Sign in to your team's tracker."
-              : "The first person to sign up becomes the owner."}
+            Sign in to access your team&apos;s tracker.
           </p>
         </div>
 
         <form onSubmit={submit} className="card p-6 space-y-4">
-          {mode === "signup" && (
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-ink-soft">
-                Your name
-              </label>
-              <input
-                className="input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Jayasree"
-              />
-            </div>
-          )}
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-soft">
-              Email
+              Email Address
             </label>
             <input
               type="email"
               required
-              className="input"
+              className="input text-sm"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
@@ -100,61 +84,64 @@ function LoginForm() {
             <input
               type="password"
               required
-              minLength={6}
-              className="input"
+              className="input text-sm"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 6 characters"
+              placeholder="Enter your password"
             />
           </div>
 
-          {error && <p className="text-sm text-critical">{error}</p>}
-          {notice && <p className="text-sm text-good">{notice}</p>}
+          {error && <p className="rounded bg-red-50 p-2 text-xs text-critical">{error}</p>}
 
           <button
             type="submit"
             disabled={pending}
-            className="btn btn-primary w-full"
+            className="btn btn-primary w-full text-sm font-semibold"
           >
-            {pending
-              ? "Please wait…"
-              : mode === "signin"
-                ? "Sign in"
-                : "Create account"}
+            {pending ? "Signing in…" : "Sign In"}
           </button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-ink-soft">
-          {mode === "signin" ? (
-            <>
-              New here?{" "}
-              <button
-                className="font-semibold text-teal"
-                onClick={() => {
-                  setMode("signup");
-                  setError(null);
-                  setNotice(null);
-                }}
-              >
-                Create an account
-              </button>
-            </>
+        {/* Invite-Only Registration Notice */}
+        <div className="mt-6 rounded-lg border border-line bg-paper/60 p-4 text-center">
+          <div className="text-xs font-semibold text-ink">
+            🔒 Registration is by Invitation Only
+          </div>
+          <p className="mt-1 text-[11px] text-ink-soft leading-relaxed">
+            Accounts are bound to pre-assigned roster profiles. If you do not have an account, request an invite link from your Delivery Manager (Jayasree Kuniyil).
+          </p>
+
+          {!showInviteInput ? (
+            <button
+              onClick={() => setShowInviteInput(true)}
+              className="mt-3 text-xs font-medium text-teal hover:underline"
+            >
+              Have an invite code? Enter it here →
+            </button>
           ) : (
-            <>
-              Already have an account?{" "}
-              <button
-                className="font-semibold text-teal"
-                onClick={() => {
-                  setMode("signin");
-                  setError(null);
-                  setNotice(null);
-                }}
-              >
-                Sign in
-              </button>
-            </>
+            <form onSubmit={handleRedeemToken} className="mt-3 space-y-2">
+              <input
+                type="text"
+                placeholder="Paste your invite token…"
+                value={inviteTokenInput}
+                onChange={(e) => setInviteTokenInput(e.target.value)}
+                className="input text-xs"
+              />
+              <div className="flex gap-2">
+                <button type="submit" className="btn btn-primary flex-1 text-xs py-1.5">
+                  Go to Join Form
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowInviteInput(false)}
+                  className="btn btn-secondary text-xs py-1.5"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           )}
-        </p>
+        </div>
       </div>
     </div>
   );
@@ -162,7 +149,13 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense>
+    <Suspense
+      fallback={
+        <div className="flex flex-1 items-center justify-center px-4 py-16">
+          <p className="text-sm text-ink-soft">Loading sign-in…</p>
+        </div>
+      }
+    >
       <LoginForm />
     </Suspense>
   );

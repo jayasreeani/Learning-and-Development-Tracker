@@ -33,7 +33,7 @@ const BLANK: Partial<Member> = {
 
 export default function RosterPage() {
   const { rows: members, loaded, supabase } = useTable<Member>("members");
-  const { loaded: viewerLoaded } = useViewer();
+  const { loaded: viewerLoaded, member: viewerMember } = useViewer();
   const [editing, setEditing] = useState<Partial<Member> | null>(null);
   const [viewing, setViewing] = useState<Member | null>(null);
   const [query, setQuery] = useState("");
@@ -195,15 +195,26 @@ export default function RosterPage() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((m) => (
-            <div
-              key={m.id}
-              className="card flex flex-col justify-between p-4 transition-shadow hover:shadow-md"
-            >
+          {filtered.map((m) => {
+            const isSelf = viewerMember?.id === m.id;
+            return (
+              <div
+                key={m.id}
+                className={`card flex flex-col justify-between p-4 transition-shadow hover:shadow-md ${
+                  isSelf ? "border-teal/50 bg-teal/[0.03] ring-1 ring-teal/30" : ""
+                }`}
+              >
               <div>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <h3 className="truncate font-semibold text-ink">{m.name}</h3>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="truncate font-semibold text-ink">{m.name}</h3>
+                      {isSelf && (
+                        <span className="chip bg-teal/10 text-teal text-[10px] font-bold">
+                          You
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-ink-soft">{m.designation || "—"}</p>
                   </div>
                   <div className="flex shrink-0 gap-1">
@@ -293,8 +304,9 @@ export default function RosterPage() {
                 </button>
               </div>
             </div>
-          ))}
-        </div>
+          );
+        })}
+      </div>
       )}
 
       {/* View Full Details Modal */}
