@@ -2,7 +2,8 @@
 // (or regenerate with `supabase gen types typescript` once the project is
 // linked to the Supabase CLI).
 
-export type Role = "owner" | "manager" | "member";
+export type Role = "owner" | "manager" | "lead" | "member";
+export type ProjectRole = "Manager" | "Lead" | "Member";
 export type RequestStatus = "Pending" | "Scheduled" | "Completed";
 
 export interface Profile {
@@ -23,6 +24,7 @@ export interface Member {
   name: string;
   designation: string;
   role_type: string;
+  project_role?: ProjectRole;
   projects: string[];
   experience_level: string;
   allocation_pct: number | null;
@@ -68,6 +70,7 @@ export interface TrainingPlan {
   topic: string;
   purpose: string;
   schedule: string | null;
+  created_by?: string | null;
   created_at: string;
 }
 

@@ -16,7 +16,7 @@ const LINKS = [
 export default function NavBar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { profile, isOwner } = useViewer();
+  const { profile, isOwner, canManage } = useViewer();
 
   async function signOut() {
     const supabase = createClient();
@@ -53,7 +53,7 @@ export default function NavBar() {
               {l.label}
             </Link>
           ))}
-          {isOwner && (
+          {(isOwner || canManage) && (
             <Link
               href="/permissions"
               className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${

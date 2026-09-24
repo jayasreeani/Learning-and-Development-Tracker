@@ -14,7 +14,7 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   name text not null default '',
   email text not null default '',
-  role text not null default 'member' check (role in ('owner', 'manager', 'member')),
+  role text not null default 'member' check (role in ('owner', 'manager', 'lead', 'member')),
   created_at timestamptz not null default now()
 );
 
@@ -90,6 +90,7 @@ create table if not exists public.members (
   name text not null default '',
   designation text not null default '',
   role_type text not null default '',
+  project_role text not null default 'Member',
   projects text[] not null default '{}',
   experience_level text not null default '',
   allocation_pct numeric,
@@ -135,6 +136,7 @@ create table if not exists public.training_plans (
   topic text not null default '',
   purpose text not null default '',
   schedule timestamptz,
+  created_by uuid references auth.users(id),
   created_at timestamptz not null default now()
 );
 
@@ -238,8 +240,17 @@ create policy "trainings delete" on public.trainings for delete
 drop policy if exists "plans read" on public.training_plans;
 create policy "plans read" on public.training_plans for select using (auth.role() = 'authenticated');
 drop policy if exists "plans write" on public.training_plans;
-create policy "plans write" on public.training_plans for all
-  using (public.can_manage()) with check (public.can_manage());
+drop policy if exists "plans insert" on public.training_plans;
+create policy "plans insert" on public.training_plans for insert
+  with check (auth.role() = 'authenticated');
+drop policy if exists "plans manage" on public.training_plans;
+drop policy if exists "plans update" on public.training_plans;
+create policy "plans update" on public.training_plans for update
+  using (public.can_manage() or auth.uid() = created_by)
+  with check (public.can_manage() or auth.uid() = created_by);
+drop policy if exists "plans delete" on public.training_plans;
+create policy "plans delete" on public.training_plans for delete
+  using (public.can_manage() or auth.uid() = created_by);
 
 -- training_requests: read for anyone signed in; ANYONE signed in can INSERT
 -- (raise a request, always starting Pending); only manager/owner can UPDATE
