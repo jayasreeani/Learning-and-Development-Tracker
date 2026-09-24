@@ -11,12 +11,13 @@ const LINKS = [
   { href: "/plans", label: "Training Plans" },
   { href: "/requests", label: "Training Requests" },
   { href: "/reports", label: "Reports" },
+  { href: "/permissions", label: "Permissions" },
 ];
 
 export default function NavBar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { profile, isOwner, canManage } = useViewer();
+  const { profile } = useViewer();
 
   async function signOut() {
     const supabase = createClient();
@@ -53,18 +54,6 @@ export default function NavBar() {
               {l.label}
             </Link>
           ))}
-          {(isOwner || canManage) && (
-            <Link
-              href="/permissions"
-              className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                pathname?.startsWith("/permissions")
-                  ? "bg-teal text-white"
-                  : "text-ink-soft hover:bg-teal-tint hover:text-ink"
-              }`}
-            >
-              Permissions
-            </Link>
-          )}
         </nav>
         <div className="hidden items-center gap-3 sm:flex">
           <span className="text-sm text-ink-soft">

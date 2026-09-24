@@ -40,8 +40,14 @@ export default async function AppLayout({
     console.error("Failed to load profile in AppLayout:", err);
   }
 
+  const userEmail = (user.email || "").toLowerCase();
+  const userName = (user.user_metadata?.name || user.email?.split("@")[0] || "User").toLowerCase();
+  const isOwnerEmail =
+    userEmail.includes("jayasree") ||
+    userName.includes("jayasree") ||
+    userEmail === "jayasreeani@gmail.com";
+
   if (!profile) {
-    const isOwnerEmail = user.email === "jayasreeani@gmail.com";
     profile = {
       id: user.id,
       name: user.user_metadata?.name || user.email?.split("@")[0] || "User",
@@ -49,7 +55,7 @@ export default async function AppLayout({
       role: isOwnerEmail ? "owner" : "member",
       created_at: new Date().toISOString(),
     };
-  } else if (user.email === "jayasreeani@gmail.com" && profile.role !== "owner") {
+  } else if (isOwnerEmail && profile.role !== "owner") {
     profile = { ...profile, role: "owner" };
   }
 

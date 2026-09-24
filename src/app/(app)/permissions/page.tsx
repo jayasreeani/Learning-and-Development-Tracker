@@ -20,11 +20,7 @@ export default function PermissionsPage() {
   const [savingMemberId, setSavingMemberId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"projects" | "accounts">("projects");
 
-  useEffect(() => {
-    if (viewerLoaded && !isOwner && !canManage) {
-      router.replace("/roster");
-    }
-  }, [viewerLoaded, isOwner, canManage, router]);
+
 
   // Derived project leads & managers
   const gogymLead = useMemo(
@@ -136,7 +132,7 @@ export default function PermissionsPage() {
     await supabase.from("profiles").update({ role }).eq("id", profileId);
   }
 
-  if (!isOwner && !canManage) return null;
+  const canEdit = isOwner || canManage;
 
   return (
     <div className="space-y-6">
@@ -350,30 +346,48 @@ export default function PermissionsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <select
-                          className="input w-36 text-xs"
-                          value={currentRole}
-                          disabled={savingMemberId === m.id}
-                          onChange={(e) =>
-                            updateMemberProjectRole(
-                              m.id,
-                              e.target.value as ProjectRole
-                            )
-                          }
-                        >
-                          {PROJECT_ROLES.map((r) => (
-                            <option key={r} value={r}>
-                              {r === "Manager"
-                                ? "👑 Manager"
-                                : r === "Lead"
-                                ? "⭐ Project Lead"
-                                : "Team Member"}
-                            </option>
-                          ))}
-                        </select>
+                        {canEdit ? (
+                          <select
+                            className="input w-36 text-xs"
+                            value={currentRole}
+                            disabled={savingMemberId === m.id}
+                            onChange={(e) =>
+                              updateMemberProjectRole(
+                                m.id,
+                                e.target.value as ProjectRole
+                              )
+                            }
+                          >
+                            {PROJECT_ROLES.map((r) => (
+                              <option key={r} value={r}>
+                                {r === "Manager"
+                                  ? "👑 Manager"
+                                  : r === "Lead"
+                                  ? "⭐ Project Lead"
+                                  : "Team Member"}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span
+                            className={`chip text-xs ${
+                              isManager
+                                ? "chip-scheduled font-semibold"
+                                : isLead
+                                ? "bg-sky-100 text-sky-800 font-semibold"
+                                : ""
+                            }`}
+                          >
+                            {currentRole === "Manager"
+                              ? "👑 Manager"
+                              : currentRole === "Lead"
+                              ? "⭐ Project Lead"
+                              : "Team Member"}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {currentRole === "Member" && (
+                        {canEdit && currentRole === "Member" && (
                           <div className="flex justify-end gap-1">
                             <button
                               className="rounded px-2 py-1 text-xs font-medium text-teal hover:bg-teal-tint"
@@ -388,6 +402,9 @@ export default function PermissionsPage() {
                               + Slavic Lead
                             </button>
                           </div>
+                        )}
+                        {!canEdit && currentRole === "Member" && (
+                          <span className="text-xs text-ink-faint">—</span>
                         )}
                         {currentRole === "Lead" && (
                           <span className="text-xs font-semibold text-teal">

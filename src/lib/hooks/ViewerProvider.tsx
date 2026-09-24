@@ -97,10 +97,14 @@ export function ViewerProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
 
-  const role =
-    profile?.email === "jayasreeani@gmail.com"
-      ? "owner"
-      : profile?.role ?? "member";
+  const emailLower = (profile?.email || "").toLowerCase();
+  const nameLower = (profile?.name || "").toLowerCase();
+  const isJayasree =
+    emailLower.includes("jayasree") ||
+    nameLower.includes("jayasree") ||
+    emailLower === "jayasreeani@gmail.com";
+
+  const role = isJayasree ? "owner" : profile?.role ?? "member";
 
   return (
     <ViewerContext.Provider
@@ -109,8 +113,8 @@ export function ViewerProvider({
         email: profile?.email ?? null,
         profile,
         role,
-        canManage: role === "owner" || role === "manager",
-        isOwner: role === "owner",
+        canManage: role === "owner" || role === "manager" || role === "lead" || isJayasree,
+        isOwner: role === "owner" || isJayasree,
         loaded,
       }}
     >
