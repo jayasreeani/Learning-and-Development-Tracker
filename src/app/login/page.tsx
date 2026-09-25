@@ -18,8 +18,15 @@ function LoginForm() {
     }
   }, [token, router]);
 
-  const [mode, setMode] = useState<"signin" | "manager_setup" | "forgot_password">("signin");
-  const [email, setEmail] = useState("");
+  const modeParam = params.get("mode");
+  const emailParam = params.get("email");
+
+  const [mode, setMode] = useState<"signin" | "manager_setup" | "forgot_password">(() => {
+    if (modeParam === "reset" || modeParam === "forgot") return "forgot_password";
+    if (modeParam === "manager") return "manager_setup";
+    return "signin";
+  });
+  const [email, setEmail] = useState(emailParam || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -209,17 +216,12 @@ function LoginForm() {
                 <label className="block text-xs font-semibold text-ink-soft">
                   Password
                 </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setError(null);
-                    setNotice(null);
-                    setMode("forgot_password");
-                  }}
-                  className="text-[11px] font-medium text-teal hover:underline"
+                <Link
+                  href="/reset-password"
+                  className="text-xs font-semibold text-teal hover:underline"
                 >
                   Forgot password?
-                </button>
+                </Link>
               </div>
               <input
                 type="password"
@@ -231,7 +233,28 @@ function LoginForm() {
               />
             </div>
 
-            {error && <p className="rounded bg-red-50 p-2 text-xs text-critical leading-relaxed">{error}</p>}
+            {error && (
+              <div className="rounded bg-red-50 p-2.5 text-xs text-critical leading-relaxed space-y-1">
+                <p>{error}</p>
+                <div className="pt-1 flex gap-3 text-[11px] font-semibold">
+                  <Link href="/reset-password" className="underline text-red-700">
+                    🔑 Reset Password
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setNotice(null);
+                      setEmail("jayasreeani@gmail.com");
+                      setMode("manager_setup");
+                    }}
+                    className="underline text-red-700"
+                  >
+                    👑 First-Time Manager Setup
+                  </button>
+                </div>
+              </div>
+            )}
             {notice && <p className="rounded bg-emerald-50 p-2 text-xs text-good">{notice}</p>}
 
             <button
@@ -241,6 +264,27 @@ function LoginForm() {
             >
               {pending ? "Signing in…" : "Sign In"}
             </button>
+
+            <div className="flex items-center justify-between pt-2 text-xs border-t border-line text-ink-soft">
+              <Link
+                href="/reset-password"
+                className="font-medium text-teal hover:underline"
+              >
+                🔑 Forgot password?
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setNotice(null);
+                  setEmail("jayasreeani@gmail.com");
+                  setMode("manager_setup");
+                }}
+                className="font-semibold text-teal hover:underline"
+              >
+                👑 Manager Setup
+              </button>
+            </div>
           </form>
         )}
 
